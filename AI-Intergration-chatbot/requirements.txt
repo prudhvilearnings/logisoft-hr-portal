@@ -1,0 +1,8 @@
+langchain
+langchain-community
+sentence-transformers
+faiss-cpu
+markdown
+python-dotenv
+transformers
+torch
