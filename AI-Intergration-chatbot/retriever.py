@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores.faiss import FAISS
+
 
 # ==========================================
 # LOAD ENV
@@ -18,7 +19,7 @@ genai.configure(
 )
 
 model = genai.GenerativeModel(
-    "gemini-2.5-flash"
+    "gemini-flash-latest"
 )
 
 # ==========================================

@@ -25,7 +25,7 @@ export interface TeamLeader {
 // ==========================================
 export const API_CONFIG = {
   // Base URL of your backend server
-  BACKEND_BASE_URL: "https://api.logisoft-hr.com/api",
+  BACKEND_BASE_URL: "http://127.0.0.1:8000/api",
 
   // API Key for your LLM or chatbot service (e.g. Gemini, OpenAI, Anthropic, etc.)
   CHATBOT_API_KEY: "YOUR_CHATBOT_API_KEY_HERE",
@@ -34,7 +34,7 @@ export const API_CONFIG = {
   CHATBOT_ENDPOINT: "https://api.openai.com/v1/chat/completions",
 
   // Switch to false when you want to connect to the live backend and chatbot APIs
-  USE_MOCK_API: true,
+  USE_MOCK_API: false,
 };
 
 // ==========================================
@@ -173,43 +173,210 @@ export async function getChatbotResponse(
     return `I received your message: "${message}". You are authenticated as a ${role} (${email}). Let me know if you need help with portal operations or permissions.`;
   }
 
-  // Real LLM / OpenAI API Key integration
+  // Real LLM / Django Backend Integration
   try {
-    const response = await fetch(API_CONFIG.CHATBOT_ENDPOINT, {
+    const token = localStorage.getItem("accessToken");
+    const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/chat/send/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${API_CONFIG.CHATBOT_API_KEY}`
+        "Authorization": token ? `Bearer ${token}` : "",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini", // or appropriate model (e.g. gemini-2.5-flash)
-        messages: [
-          {
-            role: "system",
-            content: `You are an HR Portal AI Assistant for Logisoft-HR. 
-            The current user's profile is: Email: ${email}, Role: ${role}.
-            Current dashboard statistics:
-            - Active Tasks: ${stats.tasks}
-            - Employees: ${stats.employees}
-            - Team Leaders: ${stats.teamLeaders}
-            Tailor your answers strictly according to the user's role and database statistics. Do not leak unauthorized sections.`
-          },
-          {
-            role: "user",
-            content: message
-          }
-        ]
-      })
+        content: message,
+        session_id: null, // Django backend handles session tracking
+      }),
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error("Unauthorized. Please log in first.");
+      }
       throw new Error(`API response error: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data.choices[0]?.message?.content || "No response received from assistant.";
+    return data.ai_message?.content || "No response received from assistant.";
   } catch (error: any) {
     console.error("Chatbot API connection error:", error);
-    return `Error connecting to Chatbot API: ${error.message}. (Please double check your API Key and endpoint in src/api.ts)`;
+    return `Error connecting to Chatbot API: ${error.message}. (Please ensure backend server is running and you are logged in)`;
   }
+}
+
+export async function fetchBackendUsers(): Promise<any[]> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/users/`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch users from backend");
+  }
+  return response.json();
+}
+
+export async function assignUserRoleAndTeam(userId: string, role: string, teamId: number | null): Promise<any> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/users/${userId}/assign-role/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+    body: JSON.stringify({
+      role,
+      team_id: teamId,
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.detail || "Failed to assign role/team");
+  }
+  return response.json();
+}
+
+export async function fetchTeams(): Promise<any[]> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/teams/`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch teams");
+  }
+  return response.json();
+}
+
+export async function fetchBackendTasks(): Promise<any[]> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/tasks/`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch tasks from backend");
+  }
+  return response.json();
+}
+
+export async function createBackendTask(title: string, description: string, status: string, assigneeId: number): Promise<any> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/tasks/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+    body: JSON.stringify({
+      title,
+      description,
+      status,
+      assignee: assigneeId
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.detail || "Failed to create task");
+  }
+  return response.json();
+}
+
+export async function updateBackendTask(taskId: string, title: string, description: string, status: string, assigneeId: number): Promise<any> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/tasks/${taskId}/`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+    body: JSON.stringify({
+      title,
+      description,
+      status,
+      assignee: assigneeId
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.detail || "Failed to update task");
+  }
+  return response.json();
+}
+
+export async function deleteBackendTask(taskId: string): Promise<any> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/tasks/${taskId}/`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to delete task");
+  }
+  return true;
+}
+
+export async function updateTaskStatus(taskId: string, status: string): Promise<any> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/tasks/${taskId}/`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.detail || "Failed to update task status");
+  }
+  return response.json();
+}
+
+export async function fetchChatHistory(): Promise<any[]> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/chat/history/`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch chat history");
+  }
+  return response.json();
+}
+
+export async function sendChatMessageToBackend(message: string, sessionId: number | null = null): Promise<any> {
+  const token = localStorage.getItem("accessToken");
+  const response = await fetch(`${API_CONFIG.BACKEND_BASE_URL}/chat/send/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token ? `Bearer ${token}` : "",
+    },
+    body: JSON.stringify({
+      content: message,
+      session_id: sessionId,
+    }),
+  });
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Unauthorized. Please log in first.");
+    }
+    throw new Error(`API error: ${response.statusText}`);
+  }
+  return response.json();
 }
