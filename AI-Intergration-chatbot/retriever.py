@@ -44,7 +44,6 @@ COMPANIES = {
 # DETECT COMPANY
 # ==========================================
 
-
 def detect_company(question):
 
     q = question.lower()
@@ -60,7 +59,6 @@ def detect_company(question):
 # ==========================================
 # LLM ANSWER
 # ==========================================
-
 
 def generate_answer(question, docs):
 
@@ -86,6 +84,7 @@ Rules:
   - footer
   - cookies
   - legal text
+- Do NOT mention sources, URLs, references, or where the information came from.
 - If the answer is not available, say:
   "I could not find that information on the website."
 
@@ -155,15 +154,3 @@ while True:
 
     print("\nAnswer:\n")
     print(answer)
-
-    print("\nSources:")
-
-    shown = set()
-
-    for doc in docs:
-
-        url = doc.metadata.get("url", "")
-
-        if url and url not in shown:
-            print("-", url)
-            shown.add(url)
